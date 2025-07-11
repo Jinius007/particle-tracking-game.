@@ -2,51 +2,79 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Crucial meta tag for responsive design. Ensures the layout width matches the device's screen width. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>3D Dust Particle Tracking Game</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Base styles for the game environment */
         body {
             margin: 0;
-            overflow: hidden;
-            background-color: #000020; 
+            overflow: hidden; /* Prevents scrollbars from appearing */
+            background-color: #000020;
             font-family: 'Inter', sans-serif;
+            touch-action: none; /* Disables browser touch actions like pinch-zoom, improving the game feel */
         }
-        .ui-container {
+
+        /* Container for the three.js canvas */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* --- UI Element Styling --- */
+
+        /* General style for UI panels */
+        .ui-panel {
             position: absolute;
-            bottom: 20px;
-            text-align: center;
-            color: white;
-            z-index: 100;
             background-color: rgba(0, 0, 0, 0.5);
-            padding: 1rem 2rem;
+            color: white;
+            padding: 0.75rem 1.5rem;
             border-radius: 0.75rem;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
         }
-        #level-container {
+
+        /* Container for top-left controls (Restart, Exit) */
+        #game-controls-container {
+            top: 20px;
             left: 20px;
+            display: none; /* Hidden by default, shown when game starts */
         }
-        #timer-container {
-            right: 20px;
-        }
-        #message-box {
+        
+        /* Responsive container for the bottom UI (Level and Timer) */
+        #bottom-ui-bar {
             position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 10px 20px;
+            box-sizing: border-box; /* Ensures padding doesn't add to the width */
+            display: flex;
+            justify-content: space-between; /* Pushes children to opposite ends */
+            align-items: center;
+            z-index: 100;
+            gap: 20px; /* Adds space between items if they wrap */
+        }
+
+        /* Centered message box for instructions and results */
+        #message-box {
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 32, 0.8);
-            color: white;
-            padding: 2rem;
-            border-radius: 1rem;
-            text-align: center;
-            z-index: 200;
-            display: none;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(135, 206, 235, 0.3);
             width: 90%;
             max-width: 500px;
+            text-align: center;
+            display: none; /* Hidden by default */
+            z-index: 200; /* Appears above all other UI */
         }
+
+        /* --- Button and Text Styling --- */
         .btn {
             padding: 0.75rem 1.5rem;
             border: none;
@@ -55,13 +83,72 @@
             font-weight: 600;
             transition: all 0.3s ease;
             margin: 0 0.5rem;
+            min-height: 44px; /* Good touch target size */
+            min-width: 44px;
         }
+
         .btn-primary {
-            background-color: #4a3a00; /* Dark gold/brown */
-            color: #FFD700; /* Gold */
+            background-color: #4a3a00;
+            color: #FFD700;
         }
+
         .btn-primary:hover {
-            background-color: #6e5600; /* Lighter gold/brown */
+            background-color: #6e5600;
+        }
+
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: #FFD700;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            margin-right: 0.5rem;
+        }
+
+        .btn-small:hover {
+            background-color: rgba(255, 215, 0, 0.2);
+        }
+
+        /* --- Mobile Responsiveness (Media Query) --- */
+        /* This block applies styles only on screens 768px wide or smaller */
+        @media (max-width: 768px) {
+            /* On mobile, stack the Level and Timer vertically instead of horizontally */
+            #bottom-ui-bar {
+                flex-direction: column; /* Stack items vertically */
+                align-items: stretch;   /* Make items take full width */
+                bottom: 10px;
+            }
+
+            /* Center text within the bottom UI panels on mobile */
+            #level-container, #timer-container {
+                text-align: center;
+            }
+
+            /* Adjust padding and font sizes for smaller screens */
+            .ui-panel {
+                padding: 0.5rem 1rem;
+            }
+            #timer {
+                font-size: 2.5rem !important; /* Make timer prominent */
+            }
+            #instruction {
+                font-size: 1rem;
+            }
+            #message-box {
+                padding: 1.5rem;
+                width: 95%; /* Use more of the screen width */
+            }
+            .btn {
+                padding: 1rem 1.5rem;
+                font-size: 1rem;
+            }
+            #game-controls-container {
+                top: 15px;
+                left: 15px;
+            }
+            .btn-small {
+                padding: 0.75rem 1.25rem; /* Make small buttons easier to tap */
+            }
         }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -69,18 +156,28 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="container"></div>
+    <!-- The 3D canvas will be rendered here -->
+    <div id="canvas-container"></div>
+
+    <!-- Top-left controls for restart/exit -->
+    <div id="game-controls-container" class="ui-panel">
+        <button id="restart-game-button" class="btn btn-small">Restart</button>
+        <button id="exit-game-button" class="btn btn-small">Exit</button>
+    </div>
     
-    <div id="level-container" class="ui-container">
-        <h2 id="level-display" class="text-xl font-semibold">Level 1</h2>
+    <!-- Responsive Bottom UI Bar -->
+    <div id="bottom-ui-bar">
+        <div id="level-container" class="ui-panel">
+            <h2 id="level-display" class="text-xl font-semibold">Level 1</h2>
+        </div>
+        <div id="timer-container" class="ui-panel">
+            <h1 id="timer" class="text-4xl font-bold">30.00</h1>
+            <p id="instruction" class="mt-1 text-lg">Watch the green particle!</p>
+        </div>
     </div>
 
-    <div id="timer-container" class="ui-container">
-        <h1 id="timer" class="text-4xl font-bold">30.00</h1>
-        <p id="instruction" class="mt-2 text-lg">Watch the green particle!</p>
-    </div>
-
-    <div id="message-box">
+    <!-- Centered Message Box -->
+    <div id="message-box" class="ui-panel">
         <h2 id="message-title" class="text-3xl font-bold mb-4">Track the Particle</h2>
         <p id="message-text" class="mb-6 text-lg">A particle will turn green for 5 seconds. Keep your eye on it! It will flash green periodically. After 30 seconds, the simulation will freeze. Click on the correct particle to win.</p>
         <div id="button-container">
@@ -93,13 +190,15 @@
     <script type="module">
         import { OrbitControls } from 'https://cdn.skypack.dev/three@0.128.0/examples/jsm/controls/OrbitControls.js';
 
+        // --- Game Configuration ---
         const colors = {
             background: 0x000020, sphere: 0x87CEEB, particle: 0xFFD700,
             highlight: 0x00ff00, wrong: 0xff0000,
             distractionColors: [0xffa500, 0x00ffff, 0xff00ff, 0xadd8e6]
         };
 
-        const container = document.getElementById('container');
+        // --- DOM Element References ---
+        const canvasContainer = document.getElementById('canvas-container');
         const timerEl = document.getElementById('timer');
         const instructionEl = document.getElementById('instruction');
         const messageBox = document.getElementById('message-box');
@@ -107,7 +206,9 @@
         const messageText = document.getElementById('message-text');
         const buttonContainer = document.getElementById('button-container');
         const levelDisplay = document.getElementById('level-display');
+        const gameControlsContainer = document.getElementById('game-controls-container');
 
+        // --- Game State Variables ---
         let scene, camera, renderer, controls, world;
         let particles = [];
         let debris = [];
@@ -119,80 +220,113 @@
         let countdownInterval, flashInterval;
         let animationFrameId;
         let distractionIntervals = [];
-
         let currentLevel = 1;
         const maxLevel = 16;
         const gameplaySpaceSize = 10;
         const boundaryRadius = gameplaySpaceSize / 2;
 
+        // --- Level Configuration ---
         const levelConfig = Array.from({length: maxLevel}, (_, i) => {
             const level = i + 1;
             const particleCount = 100 + level * 15;
             const speedMultiplier = 1 + level * 0.07;
-            
             let distractions = {
-                colorChangerCount: 0,
-                exploderCount: 0,
-                resizerCount: 0,
-                vibratorCount: 0,
-                magicDustCount: 0,
+                colorChangerCount: 0, exploderCount: 0, resizerCount: 0,
+                vibratorCount: 0, magicDustCount: 0,
             };
-
-            if (level >= 2) {
-                distractions.colorChangerCount = Math.floor(particleCount * 0.10);
-            }
-            if (level >= 3) {
-                distractions.exploderCount = Math.floor(particleCount * 0.10);
-            }
+            if (level >= 2) distractions.colorChangerCount = Math.floor(particleCount * 0.10);
+            if (level >= 3) distractions.exploderCount = Math.floor(particleCount * 0.10);
             if (level >= 4) {
                 const combinedPercent = Math.floor(particleCount * 0.15);
                 distractions.colorChangerCount = Math.ceil(combinedPercent / 2);
                 distractions.exploderCount = Math.floor(combinedPercent / 2);
             }
-            if (level >= 5) {
-                distractions.magicDustCount = Math.floor(particleCount * 0.05);
-            }
+            if (level >= 5) distractions.magicDustCount = Math.floor(particleCount * 0.05);
             if (level >= 6) {
                 distractions.resizerCount = Math.floor(particleCount * 0.05);
                 distractions.vibratorCount = Math.floor(particleCount * 0.05);
             }
-
             return { level, particleCount, speedMultiplier, distractions };
         });
 
+        // --- Core Functions ---
+
+        /**
+         * Initializes the entire game scene, renderer, physics, and event listeners.
+         */
         function init() {
+            // Scene and Camera
             scene = new THREE.Scene();
             scene.background = new THREE.Color(colors.background);
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.z = gameplaySpaceSize * 1.8;
+
+            // Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            container.appendChild(renderer.domElement);
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-            scene.add(ambientLight);
+            canvasContainer.appendChild(renderer.domElement);
+
+            // Lighting
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
             const pointLight = new THREE.PointLight(0xffffff, 0.7, 100);
             pointLight.position.set(15, 15, 15);
             scene.add(pointLight);
+
+            // Controls
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
+
+            // Physics World
             world = new CANNON.World();
             world.gravity.set(0, 0, 0);
             const sphereGeometry = new THREE.SphereGeometry(boundaryRadius, 32, 16);
             const sphereMaterial = new THREE.MeshBasicMaterial({ color: colors.sphere, wireframe: true, transparent: true, opacity: 0.2 });
             scene.add(new THREE.Mesh(sphereGeometry, sphereMaterial));
+
+            // Raycasting for object picking
             raycaster = new THREE.Raycaster();
             mouse = new THREE.Vector2();
+
+            // Event Listeners
             window.addEventListener('resize', onWindowResize, false);
             renderer.domElement.addEventListener('pointerdown', onPointerDown, false);
+            
+            // Initial UI Setup
             setupInitialButton();
+            setupGameControls();
         }
 
+        /**
+         * Sets up the main menu screen.
+         */
         function setupInitialButton() {
+            messageTitle.textContent = "Track the Particle";
+            messageText.innerHTML = `A particle will turn green for 5 seconds. Keep your eye on it! It will flash green periodically. After 30 seconds, the simulation will freeze. Click on the correct particle to win.`;
             buttonContainer.innerHTML = `<button id="start-button" class="btn btn-primary">Start Game</button>`;
             document.getElementById('start-button').addEventListener('click', () => startGame(currentLevel));
             messageBox.style.display = 'block';
+            gameControlsContainer.style.display = 'none';
+        }
+        
+        /**
+         * Adds event listeners to the Restart and Exit buttons.
+         */
+        function setupGameControls() {
+            document.getElementById('restart-game-button').addEventListener('click', () => {
+                if(gameState !== 'initial') startGame(currentLevel);
+            });
+            document.getElementById('exit-game-button').addEventListener('click', () => {
+                if(gameState !== 'initial') {
+                    resetGame();
+                    setupInitialButton();
+                }
+            });
         }
 
+        /**
+         * Starts a game level.
+         * @param {number} level - The level number to start.
+         */
         function startGame(level) {
             currentLevel = level;
             if (currentLevel > maxLevel) {
@@ -202,6 +336,7 @@
             resetGame();
             gameState = 'starting';
             messageBox.style.display = 'none';
+            gameControlsContainer.style.display = 'flex';
             levelDisplay.textContent = `Level ${currentLevel}`;
             createParticles(levelConfig[currentLevel - 1].particleCount);
             selectTarget();
@@ -210,28 +345,33 @@
             startDistractions();
         }
 
+        /**
+         * Resets the game state, clears all objects, and stops timers.
+         */
         function resetGame() {
             [...particles, ...debris, ...magicDusts].forEach(p => {
                 if(p.mesh) scene.remove(p.mesh);
                 if(p.body) world.removeBody(p.body);
-                if (p.light) scene.remove(p.light);
                 if (p.dust) p.dust.forEach(d => scene.remove(d));
             });
-            particles.length = 0;
-            debris.length = 0;
-            magicDusts.length = 0;
+            particles = []; debris = []; magicDusts = [];
             targetParticle = null;
             timerEl.textContent = '30.00';
             instructionEl.textContent = 'Watch the green particle!';
             instructionEl.style.color = '#00ff00';
             gameTimer = 30;
-            if (countdownInterval) clearInterval(countdownInterval);
-            if (flashInterval) clearInterval(flashInterval);
+            clearInterval(countdownInterval);
+            clearInterval(flashInterval);
             distractionIntervals.forEach(clearInterval);
             distractionIntervals = [];
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameState = 'initial';
         }
         
+        /**
+         * Creates a single particle with physics.
+         * @param {THREE.Vector3} [pos] - Optional initial position.
+         */
         function createParticle(pos) {
             const particleGeometry = new THREE.SphereGeometry(0.1, 16, 16);
             const particleMaterial = new THREE.MeshStandardMaterial({ color: colors.particle, roughness: 0.4, metalness: 0.1 });
@@ -241,9 +381,9 @@
             const particlePhysicsMaterial = new CANNON.Material('particle');
             const body = new CANNON.Body({ mass: 1, shape: particleShape, material: particlePhysicsMaterial });
 
-            const particle_particle_contact = new CANNON.ContactMaterial( particlePhysicsMaterial, particlePhysicsMaterial, { friction: 0.1, restitution: 0.9 });
-            if (!world.contactmaterials.some(cm => cm.id === particle_particle_contact.id)) {
-                 world.addContactMaterial(particle_particle_contact);
+            const contactMaterial = new CANNON.ContactMaterial(particlePhysicsMaterial, particlePhysicsMaterial, { friction: 0.1, restitution: 0.9 });
+            if (!world.contactmaterials.some(cm => cm.id === contactMaterial.id)) {
+                 world.addContactMaterial(contactMaterial);
             }
 
             if (!pos) {
@@ -270,9 +410,7 @@
         }
 
         function createParticles(count) {
-            for (let i = 0; i < count; i++) {
-                createParticle();
-            }
+            for (let i = 0; i < count; i++) createParticle();
         }
 
         function selectTarget() {
@@ -283,36 +421,21 @@
             targetParticle.isTarget = true;
         }
 
+        // --- Distraction Functions (Restored) ---
         function startDistractions() {
             const config = levelConfig[currentLevel - 1].distractions;
-
-            if (config.colorChangerCount > 0) {
-                distractionIntervals.push(setInterval(() => applyMultipleDistractions(changeColor, config.colorChangerCount), 4000));
-            }
-            if (config.exploderCount > 0) {
-                distractionIntervals.push(setInterval(() => applyMultipleDistractions(explode, config.exploderCount), 5000));
-            }
-            if (config.resizerCount > 0) {
-                 distractionIntervals.push(setInterval(() => applyMultipleDistractions(resize, config.resizerCount), 6000));
-            }
-            if (config.vibratorCount > 0) {
-                 distractionIntervals.push(setInterval(() => applyMultipleDistractions(vibrate, config.vibratorCount), 7000));
-            }
-            if (config.magicDustCount > 0) {
-                distractionIntervals.push(setInterval(() => {
-                    for(let i=0; i<config.magicDustCount; i++) formNewParticle();
-                }, 8000));
-            }
+            if (config.colorChangerCount > 0) distractionIntervals.push(setInterval(() => applyMultipleDistractions(changeColor, config.colorChangerCount), 4000));
+            if (config.exploderCount > 0) distractionIntervals.push(setInterval(() => applyMultipleDistractions(explode, config.exploderCount), 5000));
+            if (config.resizerCount > 0) distractionIntervals.push(setInterval(() => applyMultipleDistractions(resize, config.resizerCount), 6000));
+            if (config.vibratorCount > 0) distractionIntervals.push(setInterval(() => applyMultipleDistractions(vibrate, config.vibratorCount), 7000));
+            if (config.magicDustCount > 0) distractionIntervals.push(setInterval(() => { for(let i=0; i<config.magicDustCount; i++) formNewParticle(); }, 8000));
         }
 
         function applyMultipleDistractions(distractionFn, count) {
             const nonTargetParticles = particles.filter(p => p && p.body && !p.isTarget && !p.isDistracted);
             nonTargetParticles.sort(() => 0.5 - Math.random());
             const particlesToDistract = nonTargetParticles.slice(0, count);
-            
-            particlesToDistract.forEach(p => {
-                if(p) distractionFn(p);
-            });
+            particlesToDistract.forEach(p => { if(p) distractionFn(p); });
         }
 
         function changeColor(p) {
@@ -398,7 +521,10 @@
                 p.isDistracted = false;
             }, 3000);
         }
-
+        
+        /**
+         * Starts the game countdown and target flashing timers.
+         */
         function startTimers() {
             setTimeout(() => {
                 if (targetParticle) targetParticle.mesh.material.color.set(colors.particle);
@@ -414,6 +540,7 @@
                     }
                 }, 8000);
             }, 5000);
+
             const startTime = Date.now();
             countdownInterval = setInterval(() => {
                 const elapsedTime = (Date.now() - startTime) / 1000;
@@ -425,8 +552,9 @@
                         targetParticle.mesh.material.color.set(colors.particle);
                     }
                 }
-                if (gameTimer > 0) timerEl.textContent = gameTimer.toFixed(2);
-                else {
+                if (gameTimer > 0) {
+                    timerEl.textContent = gameTimer.toFixed(2);
+                } else {
                     timerEl.textContent = '0.00';
                     clearInterval(countdownInterval);
                     freezeGame();
@@ -436,7 +564,7 @@
 
         function freezeGame() {
             gameState = 'frozen';
-            instructionEl.textContent = 'Click the particle you were tracking!';
+            instructionEl.textContent = 'Click the particle!';
             instructionEl.style.color = '#facc15';
             distractionIntervals.forEach(clearInterval);
             distractionIntervals = [];
@@ -452,11 +580,17 @@
                 startGame(currentLevel);
             });
             messageBox.style.display = 'block';
+            gameControlsContainer.style.display = 'none';
         }
 
+        /**
+         * Checks if the clicked particle was the correct target.
+         * @param {THREE.Object3D} clickedObject - The mesh that was clicked.
+         */
         function checkWin(clickedObject) {
             if (gameState !== 'frozen') return;
             gameState = 'finished';
+            gameControlsContainer.style.display = 'none';
             const clickedParticle = particles.find(p => p.mesh === clickedObject);
             if (clickedParticle && clickedParticle.isTarget) {
                 messageTitle.textContent = 'You Win!';
@@ -475,6 +609,8 @@
             messageBox.style.display = 'block';
         }
 
+        // --- Event Handlers and Animation Loop ---
+
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -484,60 +620,60 @@
         function onPointerDown(event) {
             event.preventDefault();
             if (gameState !== 'frozen') return;
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            const clientX = event.clientX || (event.touches && event.touches[0].clientX);
+            const clientY = event.clientY || (event.touches && event.touches[0].clientY);
+            
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObjects(particles.map(p => p.mesh));
             if (intersects.length > 0) checkWin(intersects[0].object);
         }
-
+        
         function animate() {
             animationFrameId = requestAnimationFrame(animate);
-            controls.update();
+            controls.update(); // Update camera controls
             if (gameState === 'starting' || gameState === 'playing') {
-                world.step(1 / 60);
-                const speedMultiplier = levelConfig[currentLevel - 1].speedMultiplier;
+                world.step(1 / 60); // Update physics
                 
                 const allBodies = [...particles, ...debris];
-
                 allBodies.forEach(p => {
                     if(!p.body) return;
+
                     if (p.isVibrating) {
                         const vibrateVec = new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1);
                         p.mesh.position.add(vibrateVec);
                         setTimeout(() => p.mesh.position.sub(vibrateVec), 50);
                         return;
                     }
+
                     p.mesh.position.copy(p.body.position);
                     p.mesh.quaternion.copy(p.body.quaternion);
 
                     if (!p.isDebris) {
-                         const force = new CANNON.Vec3((Math.random() - 0.5) * 0.5 * speedMultiplier, (Math.random() - 0.5) * 0.5 * speedMultiplier, (Math.random() - 0.5) * 0.5 * speedMultiplier);
+                         const force = new CANNON.Vec3((Math.random() - 0.5) * 0.5 * levelConfig[currentLevel - 1].speedMultiplier, (Math.random() - 0.5) * 0.5 * levelConfig[currentLevel - 1].speedMultiplier, (Math.random() - 0.5) * 0.5 * levelConfig[currentLevel - 1].speedMultiplier);
                          p.body.applyForce(force, p.body.position);
                     }
-                   
-                    const pos = p.body.position;
-                    const dist = pos.length();
-                    const radius = p.body.shapes[0].radius;
 
-                    if (dist + radius > boundaryRadius) {
+                    // Boundary collision logic
+                    const pos = p.body.position;
+                    const radius = p.body.shapes[0].radius;
+                    if (pos.length() + radius > boundaryRadius) {
+                        // FIX: The normalize() method in cannon.js modifies the vector in-place and returns its original length.
+                        // We need to clone the vector first and then call normalize() on the clone without using its return value.
                         const normal = pos.clone();
                         normal.normalize();
+
                         const dot = p.body.velocity.dot(normal);
-                        
-                        const scaledNormal = new CANNON.Vec3();
-                        normal.scale(2 * dot, scaledNormal);
-                        const reflectedVel = new CANNON.Vec3();
-                        p.body.velocity.vsub(scaledNormal, reflectedVel);
-                        
+                        const reflectedVel = p.body.velocity.vsub(normal.scale(2 * dot));
                         p.body.velocity.copy(reflectedVel);
 
-                        const pushBackPos = new CANNON.Vec3();
-                        normal.scale(boundaryRadius - (radius + 0.01), pushBackPos);
+                        const pushBackPos = normal.scale(boundaryRadius - (radius + 0.01));
                         p.body.position.copy(pushBackPos);
                     }
                 });
 
+                // Update debris animations
                 debris = debris.filter((d) => {
                     d.life -= 0.015;
                     if (d.mesh && d.mesh.material) {
@@ -551,6 +687,7 @@
                     return true;
                 });
 
+                // Update magic dust animations
                 magicDusts.forEach((group, index) => {
                     group.life -= 0.01;
                     group.dust.forEach(d => {
@@ -566,6 +703,7 @@
             renderer.render(scene, camera);
         }
 
+        // --- Start the application ---
         init();
     </script>
 </body>
